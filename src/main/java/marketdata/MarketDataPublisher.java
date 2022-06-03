@@ -6,15 +6,16 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-public class MarketDataProcessor implements MarketDataListener {
+public class MarketDataPublisher implements MarketDataListener {
     private PublishSubject<MarketData> marketDataSubject = null;
     private Set<MarketDataSubscriber> subscriberSet = ConcurrentHashMap.newKeySet();
 
-    public MarketDataProcessor() {
+    public MarketDataPublisher() {
         marketDataSubject = PublishSubject.create();
+
         marketDataSubject
                 .window(1, TimeUnit.SECONDS)
-                .debounce(100, TimeUnit.MILLISECONDS).delay(10, TimeUnit.MILLISECONDS)
+                .debounce(100, TimeUnit.MILLISECONDS).delay(50, TimeUnit.MILLISECONDS)
                 .subscribe(marketDataObservable -> marketDataObservable
                         .distinct(MarketData::getRIC)
                         .take(100)

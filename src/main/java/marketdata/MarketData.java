@@ -13,16 +13,16 @@ import java.time.LocalDateTime;
 
 public class MarketData{
     private String RIC;
-    private double bid;
-    private double ask;
+    private double bidPrice;
+    private double askPrice;
     private LocalDateTime lastUpdateTime;
 
     @Override
     public String toString() {
         return "MarketData{" +
                 "RIC='" + RIC + '\'' +
-                ", bid=" + bid +
-                ", ask=" + ask +
+                ", bid=" + bidPrice +
+                ", ask=" + askPrice +
                 ", lastUpdateTime=" + lastUpdateTime +
                 '}';
     }
