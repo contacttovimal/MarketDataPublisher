@@ -1,5 +1,9 @@
 package marketdata;
 
+import rx.BackpressureOverflow;
+import rx.Observable;
+import rx.Subscription;
+import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 
 import java.util.Set;
@@ -7,15 +11,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class MarketDataPublisher implements MarketDataListener {
-    private PublishSubject<MarketData> marketDataSubject = null;
+    private final PublishSubject<MarketData> marketDataSubject;
+    private final Subscription marketDataSubscription;
     private Set<MarketDataSubscriber> subscriberSet = ConcurrentHashMap.newKeySet();
+    private static final long BACK_PRESSURE_CAPACITY = 3;
 
     public MarketDataPublisher() {
         marketDataSubject = PublishSubject.create();
 
-        marketDataSubject
+        marketDataSubscription = marketDataSubject
                 .window(1, TimeUnit.SECONDS)
-                .debounce(100, TimeUnit.MILLISECONDS).delay(50, TimeUnit.MILLISECONDS)
+                .debounce(100, TimeUnit.MILLISECONDS).delay(20, TimeUnit.MILLISECONDS)
+                .onBackpressureBuffer(BACK_PRESSURE_CAPACITY, () -> {
+                    System.out.println("skipping oldest");
+                }, BackpressureOverflow.ON_OVERFLOW_DROP_OLDEST)
+                .onExceptionResumeNext(Observable.empty())
+                .onErrorResumeNext(throwable -> {
+                    throwable.printStackTrace();
+                    return Observable.empty();
+                })
+                .subscribeOn(Schedulers.newThread())
                 .subscribe(marketDataObservable -> marketDataObservable
                         .distinct(MarketData::getRIC)
                         .take(100)
@@ -23,7 +38,6 @@ public class MarketDataPublisher implements MarketDataListener {
                 );
 
     }
-
 
     @Override
     public void onMessage(MarketData marketData) {
@@ -35,19 +49,24 @@ public class MarketDataPublisher implements MarketDataListener {
         subscriberSet.stream().parallel().forEach(subscriber -> subscriber.onMarketData(marketData));
     }
 
-    public boolean subscribe(MarketDataSubscriber marketDataSubscriber){
-        if(!subscriberSet.contains(marketDataSubscriber)){
+    public boolean subscribe(MarketDataSubscriber marketDataSubscriber) {
+        if (!subscriberSet.contains(marketDataSubscriber)) {
             subscriberSet.add(marketDataSubscriber);
             return true;
         }
         return false;
     }
 
-    public boolean unsubscribe(MarketDataSubscriber marketDataSubscriber){
-        if(subscriberSet.contains(marketDataSubscriber)){
-           return subscriberSet.remove(marketDataSubscriber);
+    public boolean unsubscribe(MarketDataSubscriber marketDataSubscriber) {
+        if (subscriberSet.contains(marketDataSubscriber)) {
+            return subscriberSet.remove(marketDataSubscriber);
         }
         return false;
+    }
+
+    public void tearDown() {
+        subscriberSet.clear();
+        marketDataSubscription.unsubscribe();
     }
 
 /*
